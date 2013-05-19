@@ -1,0 +1,230 @@
+{% extends "base.html" %}
+
+{% block scriptblock %}
+
+{% endblock %}
+
+{% block navbar %}
+    <ul class="nav">
+
+    </ul>
+{% endblock %}
+
+{% block wrapper %}
+    <div class="form-horizontal">
+        <legend>Time Period</legend>
+        <div class="control-group">
+            <label class="control-label" for="fromDate">From Date</label>
+
+            <div class="controls">
+                <input type="date" id="fromDate">
+            </div>
+        </div>
+        <div class="control-group">
+            <label class="control-label" for="toDate">To Date</label>
+
+            <div class="controls">
+                <input type="date" id="toDate">
+            </div>
+        </div>
+        <div class="control-group">
+            <label class="control-label" for="startType">Start</label>
+            <div class="controls">
+                <select id="startType">
+                    <option>Day</option>
+                    <option>Night</option>
+                    <option>Rest</option>
+                    <option>Off</option>
+                </select>
+            </div>
+        </div>
+        <legend>Extra Days</legend>
+        <div class="control-group">
+            <label class="control-label" for="extraDate">Extra Date</label>
+            <div class="controls">
+                <input type="date" id="extraDate">
+            </div>
+        </div>
+
+        <div class="control-group">
+            <label class="control-label" for="extraHours">Extra Hour</label>
+            <div class="controls">
+                <input type="number" id="extraHours" min="1" max="12" step="0.5" value="8">
+            </div>
+        </div>
+
+        <div class="control-group">
+            <div class="controls">
+                <button type="button" id="addTiming" onclick="addTiming()" class="btn">Add Timing</button>
+            </div>
+        </div>
+
+        <div id="table_wrapper">
+            <table id="table_extra"  class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Hours</th>
+                        <th></th>
+                    </tr>
+                </thead>
+            </table>
+        </div>
+
+        <hr>
+        <div class="control-group">
+            <div class="controls">
+                <button type="button" onclick="calculate()" class="btn btn-primary btn-large">Calculate Timings</button>
+            </div>
+        </div>
+    </div>
+
+    <hr>
+    <div id="result_wrapper">
+        <h1>Results</h1>
+        <div class="well">
+            <h4 id="nwh"></h4>
+            <h4 id="swh"></h4>
+
+        </div>
+        <table id="results" class="table table-striped table-hover">
+            <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Friendly Date</th>
+                  <th>Type</th>
+                  <th>NWH</th>
+                  <th>SWH</th>
+                </tr>
+              </thead>
+        </table>
+
+    </div>
+{% endblock %}
+
+{% block startblock %}
+    <script>
+    Array.prototype.remove = function(v) { this.splice(this.indexOf(v) == -1 ? this.length : this.indexOf(v), 1); };
+
+    extra_timings = [];
+    $('#table_wrapper').hide();
+    $('#result_wrapper').hide();
+
+    function calculate(){
+        $('#result_wrapper').hide();
+        $('#results tr:gt(0)').remove();
+
+        $.ajax('/calculate', {
+            type: 'POST',
+            cache: false,
+            timeout: 60000,
+            dataType: 'json',
+            beforeSend: function(xhr, settings) {
+                function getCookie(name) {
+                    var cookieValue = null;
+                    if (document.cookie && document.cookie != '') {
+                        var cookies = document.cookie.split(';');
+                        for (var i = 0; i < cookies.length; i++) {
+                            var cookie = jQuery.trim(cookies[i]);
+                            // Does this cookie string begin with the name we want?
+                            if (cookie.substring(0, name.length + 1) == (name + '=')) {
+                                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                                break;
+                            }
+                        }
+                    }
+                    return cookieValue;
+                }
+                if (!(/^http:.*/.test(settings.url) || /^https:.*/.test(settings.url))) {
+                    // Only send the token to relative URLs i.e. locally.
+                    xhr.setRequestHeader("X-CSRFToken", getCookie('csrftoken'));
+                }
+            },
+            data: JSON.stringify({
+                'fromDate': $('#fromDate').val(),
+                'toDate': $('#toDate').val(),
+                'startType' : $('#startType').val(),
+                'extra': extra_timings
+            })
+        }).done(function(data){
+            console.log(data);
+            $('#result_wrapper').show();
+            $('#nwh').text('Total NWH: ' + data.details.nwh);
+            $('#swh').text('Total SWH: ' + data.details.swh);
+
+            var results = data.details.per_day;
+            _.each(results, function(result, index){
+                if (result.special === true){
+                    $('#results').append(
+                        '<tr class="success">' +
+                            '<td>' + result.day+ '</td>' +
+                            '<td>' + result.friendly_day+ '</td>' +
+                            '<td>' + result.type+ '</td>' +
+                            '<td>' + result.nwh+ '</td>' +
+                            '<td>' + result.swh+ '</td>' +
+                        '</tr>');
+                } else {
+                    $('#results').append(
+                        '<tr>' +
+                            '<td>' + result.day+ '</td>' +
+                            '<td>' + result.friendly_day+ '</td>' +
+                            '<td>' + result.type+ '</td>' +
+                            '<td>' + result.nwh+ '</td>' +
+                            '<td>' + result.swh+ '</td>' +
+                        '</tr>');
+                }
+            });
+
+            $('#results').append(
+                        '<tr>' +
+                            '<td></td>' +
+                            '<td></td>' +
+                            '<td></td>' +
+                            '<td><h5>' + data.details.nwh+ '</h5></td>' +
+                            '<td><h5>' + data.details.swh+ '</h5></td>' +
+                        '</tr>');
+
+            $('#results tr td:contains("Extra")').parent().addClass('error')
+
+        });
+    }
+
+    function addTiming(){
+        // Add the timing.
+        extra_timings.push({
+            'date': $('#extraDate').val(),
+            'hour': $('#extraHours').val()
+        });
+
+        // Refresh Table:
+        refreshTable(extra_timings);
+    }
+    function removeItem(extra_timing){
+        debugger;
+        extra_timings.remove(extra_timing);
+        refreshTable(extra_timings);
+        debugger;
+        if (extra_timings.length === 0){
+            $('#table_wrapper').hide();
+        }
+
+    }
+
+    function refreshTable(){
+        $('#table_extra tr:gt(0)').remove();
+        $('#table_wrapper').show();
+        _.each(extra_timings, function(extra_timing, index){
+            $('#table_extra').append(
+                    '<tr>' +
+                        '<td>' + extra_timing.date + '</td>' +
+                        '<td>' + extra_timing.hour + '</td>' +
+                        '<td><i id="remove_' + index + '"class="icon-remove" style="cursor: pointer;cursor: hand;"></i></td>' +
+                    '</tr>');
+            $('#remove_' + index).click(function(){
+                debugger;
+                removeItem(extra_timing);
+            })
+        });
+    }
+    </script>
+{% endblock %}
