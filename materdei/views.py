@@ -75,6 +75,7 @@ def calculate(request):
 
     return HttpResponse(json.dumps({'status': 'OK',
                                     'details': {
+                                        'total': snwh + sswh,
                                         'nwh': snwh,
                                         'swh': sswh,
                                         'per_day': per_day
